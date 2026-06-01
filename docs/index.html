@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemTool -- Windows Memory Scanner & Editor</title>
+  <meta name="description" content="A high-performance Windows memory scanner and editor with a PyQt6 GUI, inspired by Cheat Engine. SIMD-accelerated scanning, pointer chain discovery, CLI integration for AI-assisted memory analysis.">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb;
+      --green: #3fb950;
+      --orange: #d2991d;
+      --red: #f85149;
+      --radius: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- Navigation ---- */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(13, 17, 23, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .inner {
+      max-width: 1100px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between; height: 56px;
+    }
+    nav .logo { font-weight: 700; font-size: 1.2rem; color: var(--text); text-decoration: none; }
+    nav .logo span { color: var(--accent); }
+    nav .links { display: flex; gap: 24px; list-style: none; }
+    nav .links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    nav .links a:hover { color: var(--text); }
+    nav .cta {
+      background: var(--accent-dim); color: white; border: none;
+      padding: 8px 16px; border-radius: var(--radius); font-size: 0.85rem;
+      text-decoration: none; font-weight: 600; transition: background 0.2s;
+    }
+    nav .cta:hover { background: var(--accent); }
+
+    /* ---- Hero ---- */
+    .hero {
+      padding: 140px 24px 80px; text-align: center; max-width: 800px; margin: 0 auto;
+    }
+    .hero .badge {
+      display: inline-block; background: rgba(88, 166, 255, 0.1); color: var(--accent);
+      padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+      margin-bottom: 24px; border: 1px solid rgba(88, 166, 255, 0.2);
+    }
+    .hero h1 { font-size: 3.2rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; }
+    .hero h1 span { background: linear-gradient(135deg, var(--accent), #a371f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { font-size: 1.15rem; color: var(--muted); max-width: 600px; margin: 0 auto 32px; }
+    .hero .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero .btn {
+      display: inline-block; padding: 12px 28px; border-radius: var(--radius);
+      font-weight: 600; text-decoration: none; font-size: 0.95rem; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent-dim); color: white; }
+    .btn-primary:hover { background: var(--accent); }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--muted); }
+
+    /* ---- Sections ---- */
+    section { padding: 80px 24px; }
+    section .container { max-width: 1100px; margin: 0 auto; }
+    section h2 { font-size: 2rem; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.01em; }
+    section .subtitle { color: var(--muted); font-size: 1.05rem; margin-bottom: 48px; max-width: 600px; }
+
+    /* ---- Features Grid ---- */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .feature-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px; transition: border-color 0.2s;
+    }
+    .feature-card:hover { border-color: var(--muted); }
+    .feature-card .icon {
+      width: 44px; height: 44px; border-radius: 10px; display: flex;
+      align-items: center; justify-content: center; margin-bottom: 16px;
+      font-size: 1.3rem; background: rgba(88, 166, 255, 0.1); color: var(--accent);
+    }
+    .feature-card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    .feature-card p { color: var(--muted); font-size: 0.9rem; }
+
+    /* ---- Stats ---- */
+    .stats {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 48px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 32px; text-align: center; margin-top: 48px;
+    }
+    .stat-value { font-size: 2.4rem; font-weight: 800; color: var(--accent); }
+    .stat-label { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+    /* ---- Code Block ---- */
+    .code-block {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .code-block .header {
+      background: rgba(255,255,255,0.03); padding: 10px 16px;
+      display: flex; gap: 8px; border-bottom: 1px solid var(--border);
+    }
+    .code-block .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .code-block .dot.red { background: #f85149; }
+    .code-block .dot.yellow { background: #d2991d; }
+    .code-block .dot.green { background: #3fb950; }
+    .code-block pre {
+      padding: 20px; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85rem; line-height: 1.7; color: var(--text);
+    }
+    .code-block .comment { color: var(--muted); }
+    .code-block .cmd { color: var(--accent); }
+    .code-block .arg { color: var(--orange); }
+    .code-block .val { color: var(--green); }
+
+    /* ---- About Section ---- */
+    #about .about-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    #about .about-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+    }
+    #about .about-card h3 { margin-bottom: 12px; font-size: 1.05rem; }
+    #about .about-card p, #about .about-card li { color: var(--muted); font-size: 0.9rem; }
+    #about .about-card ul { padding-left: 18px; }
+    #about .about-card li { margin-bottom: 6px; }
+    #about .about-card a { color: var(--accent); text-decoration: none; }
+    #about .about-card a:hover { text-decoration: underline; }
+
+    /* ---- Footer ---- */
+    footer {
+      border-top: 1px solid var(--border); padding: 40px 24px;
+      text-align: center; color: var(--muted); font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    footer .links { margin: 12px 0; display: flex; gap: 20px; justify-content: center; }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.2rem; }
+      #about .about-grid { grid-template-columns: 1fr; }
+      nav .links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="inner">
+    <a href="#" class="logo">Mem<span>Tool</span></a>
+    <ul class="links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#usage">Usage</a></li>
+      <li><a href="#about">About</a></li>
+    </ul>
+    <a href="https://github.com/jlaiii/memtool" class="cta">View on GitHub</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="badge">Windows 10+ / Python 3.10+ / Administrator Required</div>
+  <h1>Memory scanning, <span>accelerated</span></h1>
+  <p>
+    A high-performance Windows memory scanner and editor with a modern PyQt6 GUI.
+    SIMD-accelerated value scanning at 800+ MB/sec, pointer chain discovery,
+    byte signature matching, and CLI integration for AI-assisted memory analysis.
+  </p>
+  <div class="actions">
+    <a href="https://github.com/jlaiii/memtool" class="btn btn-primary">Get Started</a>
+    <a href="#usage" class="btn btn-secondary">Documentation</a>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="container">
+    <h2>Features</h2>
+    <p class="subtitle">Everything you need for memory analysis, scanning, and editing on Windows.</p>
+    <div class="features">
+
+      <div class="feature-card">
+        <div class="icon">&#9881;</div>
+        <h3>SIMD-Accelerated Scanner</h3>
+        <p>NumPy-powered scans achieve 800+ MB/sec. 11 value types, 8 scan kinds, and full unaligned scanning across every byte offset.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">&#9733;</div>
+        <h3>Value Freezing at 250 Hz</h3>
+        <p>Lock values in place with automatic VirtualProtectEx page unprotection. Write-back verification confirms every operation.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">&#8661;</div>
+        <h3>Pointer Chain Discovery</h3>
+        <p>Find multi-level pointer chains rooted in static module addresses. Save chains to survive game restarts and share with others.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">&#9737;</div>
+        <h3>Byte Signature Matching</h3>
+        <p>IDA-style pattern scanning with wildcards. Create unique signatures around values that persist through game updates.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">&#9000;</div>
+        <h3>CLI for AI Integration</h3>
+        <p>14 CLI commands with JSON output. Designed for Claude Code and other AI tools to perform autonomous memory analysis and editing.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">&#9783;</div>
+        <h3>Smart Persistent Cache</h3>
+        <p>Save address lists and pointer caches as JSON. Auto-rediscover values on re-attach using cached signatures and pointer chains.</p>
+      </div>
+
+    </div>
+
+    <div class="stats">
+      <div>
+        <div class="stat-value">800+</div>
+        <div class="stat-label">MB/sec scan throughput</div>
+      </div>
+      <div>
+        <div class="stat-value">11</div>
+        <div class="stat-label">value types supported</div>
+      </div>
+      <div>
+        <div class="stat-value">8</div>
+        <div class="stat-label">scan comparison kinds</div>
+      </div>
+      <div>
+        <div class="stat-value">250 Hz</div>
+        <div class="stat-label">freeze refresh rate</div>
+      </div>
+      <div>
+        <div class="stat-value">14</div>
+        <div class="stat-label">CLI commands</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Usage -->
+<section id="usage" style="background: var(--surface);">
+  <div class="container">
+    <h2>Quick Start</h2>
+    <p class="subtitle">Install, launch, attach, and scan in under a minute.</p>
+
+    <div class="code-block" style="margin-bottom: 24px;">
+      <div class="header">
+        <div class="dot red"></div>
+        <div class="dot yellow"></div>
+        <div class="dot green"></div>
+      </div>
+      <pre><span class="comment"># Clone and install</span>
+<span class="cmd">git clone</span> https://github.com/jlaiii/memtool.git
+<span class="cmd">cd</span> memtool
+<span class="cmd">pip install</span> -r requirements.txt
+
+<span class="comment"># Launch the GUI (triggers UAC for admin)</span>
+<span class="cmd">python</span> run.py
+
+<span class="comment"># Or use the CLI for AI-assisted workflows</span>
+<span class="cmd">python -m</span> memtool.cli <span class="arg">processes</span> --json
+<span class="cmd">python -m</span> memtool.cli <span class="arg">attach</span> --pid <span class="val">1234</span>
+<span class="cmd">python -m</span> memtool.cli <span class="arg">scan</span> --type int4 --value <span class="val">100</span>
+<span class="cmd">python -m</span> memtool.cli <span class="arg">next</span> --kind decreased
+<span class="cmd">python -m</span> memtool.cli <span class="arg">write</span> --address <span class="val">0x7FF12345</span> --type int4 --value <span class="val">999</span>
+<span class="cmd">python -m</span> memtool.cli <span class="arg">freeze</span> --address <span class="val">0x7FF12345</span> --type int4 --value <span class="val">999</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- About -->
+<section id="about">
+  <div class="container">
+    <h2>About</h2>
+    <p class="subtitle">Project details, roadmap, and how to contribute.</p>
+    <div class="about-grid">
+
+      <div class="about-card">
+        <h3>Project</h3>
+        <p>
+          MemTool is an open-source Windows memory analysis tool built with Python and PyQt6.
+          It is inspired by Cheat Engine and designed for single-player game modding,
+          reverse engineering education, and memory forensics research.
+        </p>
+        <p style="margin-top: 12px;"><strong>Website:</strong> <a href="https://jlaiii.github.io/memtool">https://jlaiii.github.io/memtool</a></p>
+        <p><strong>Repository:</strong> <a href="https://github.com/jlaiii/memtool">https://github.com/jlaiii/memtool</a></p>
+      </div>
+
+      <div class="about-card">
+        <h3>License &amp; Restrictions</h3>
+        <ul>
+          <li>MIT License -- free to use, modify, and distribute</li>
+          <li>Windows only (uses Win32 API via ctypes)</li>
+          <li>Requires Administrator privileges for memory access</li>
+          <li>Intended for single-player games and educational use</li>
+          <li>Not for use with multiplayer games or software that prohibits memory modification</li>
+        </ul>
+      </div>
+
+      <div class="about-card">
+        <h3>Technology Stack</h3>
+        <ul>
+          <li><strong>GUI:</strong> PyQt6 with Catppuccin Mocha dark theme</li>
+          <li><strong>Scanning:</strong> NumPy with SIMD vectorization</li>
+          <li><strong>Memory I/O:</strong> Windows API via ctypes (ReadProcessMemory, WriteProcessMemory, VirtualProtectEx)</li>
+          <li><strong>Module Enumeration:</strong> Toolhelp32Snapshot API</li>
+          <li><strong>Persistence:</strong> JSON in ~/MemTool/</li>
+        </ul>
+      </div>
+
+      <div class="about-card">
+        <h3>Roadmap</h3>
+        <ul>
+          <li>Debug register breakpoints (find what writes/accesses this address)</li>
+          <li>Dissect data structures / struct builder</li>
+          <li>Code injection and DLL injection</li>
+          <li>Kernel driver for hardware breakpoints and protected process access</li>
+          <li>Auto-assembler for scripting and code caves</li>
+          <li>Lua scripting engine</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="links">
+    <a href="https://github.com/jlaiii/memtool">GitHub</a>
+    <a href="https://jlaiii.github.io/memtool">Website</a>
+    <a href="https://github.com/jlaiii/memtool#readme">Documentation</a>
+  </div>
+  <p>MemTool -- MIT License -- Built with Python, PyQt6, and NumPy</p>
+</footer>
+
+</body>
+</html>
